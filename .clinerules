@@ -1,0 +1,210 @@
+# Cline Rules - École Management Frontend
+
+## 🎯 **PHILOSOPHIE : "FEATURE-FIRST & SIMPLICITÉ"**
+
+### **Principe fondamental**
+- Une feature = un dossier complet et autonome
+- Développement rapide et itératif
+- Simple d'abord, complexification si nécessaire
+- Feedback utilisateur constant
+
+---
+
+## 🏗️ **ARCHITECTURE & STACK TECHNIQUE**
+
+### **Stack obligatoire**
+- **React 19** + **TypeScript** + **Vite**
+- **Tailwind CSS** uniquement (0% CSS custom)
+- **React Query** pour les données serveur
+- **React Hook Form** + **Zod** pour les formulaires
+- **Axios** pour les appels API
+
+### **Structure des dossiers**
+```
+src/
+├── features/           # Organisation par fonctionnalité métier
+│   ├── auth/          # Authentification
+│   │   ├── api.ts     # API calls + hooks React Query
+│   │   ├── types.ts   # Types spécifiques à l'auth
+│   │   └── components/ # Composants auth (LoginForm, etc.)
+│   ├── students/      # Gestion des élèves
+│   │   ├── api.ts
+│   │   ├── types.ts
+│   │   └── components/
+│   └── classes/       # Gestion des classes
+├── shared/            # Code partagé entre features
+│   ├── components/    # UI générique (Button, Modal, etc.)
+│   ├── hooks/         # Hooks utilitaires
+│   ├── utils/         # Fonctions utilitaires
+│   └── types/         # Types partagés
+├── app/               # Configuration globale
+│   ├── router.tsx     # Configuration des routes
+│   └── providers.tsx  # Providers globaux
+└── pages/             # Pages qui assemblent les features
+```
+
+---
+
+## 📋 **WORKFLOW DE DÉVELOPPEMENT**
+
+### **🚀 Développement d'une nouvelle feature (2h max)**
+
+#### **Phase 1 : Investigation Backend (10 min)**
+1. **Analyser l'API** : Identifier les endpoints dans `../backend/app/domains/`
+2. **Comprendre les données** : Examiner les modèles et schemas Pydantic
+3. **Lister les erreurs** : Connaître les erreurs métier possibles
+
+#### **Phase 2 : Setup Frontend (20 min)**
+1. **Créer la structure** :
+   ```bash
+   src/features/nom-feature/
+   ├── api.ts       # Endpoints + hooks React Query
+   ├── types.ts     # Types TypeScript (copie des schemas backend)
+   └── components/  # Composants de la feature
+   ```
+
+2. **Définir les types** : Copier/adapter les types du backend
+3. **Créer les hooks API** : Un hook par endpoint principal
+
+#### **Phase 3 : Développement UI (90 min)**
+1. **Composants simples** : Formulaires, listes, détails
+2. **Assembly** : Créer la page qui utilise les composants
+3. **Test en temps réel** : Vérifier avec le serveur de dev
+
+#### **Phase 4 : Finalisation (10 min)**
+1. **Routing** : Ajouter les routes dans `app/router.tsx`
+2. **Documentation** : Mettre à jour STATUS.md
+3. **Next !** : Passer à la feature suivante
+
+---
+
+## 🎨 **CONVENTIONS DE NOMMAGE**
+
+### **Fichiers et dossiers**
+- **Features** : `kebab-case` (ex: `student-management/`)
+- **Composants** : `PascalCase` (ex: `StudentForm.tsx`)
+- **Hooks** : `camelCase` avec préfixe `use` (ex: `useStudents.ts`)
+- **Types** : `PascalCase` avec préfixe `T` (ex: `TStudent`)
+
+### **Variables et fonctions**
+- **Variables/fonctions** : `camelCase`
+- **Constantes** : `UPPER_SNAKE_CASE`
+- **Interfaces** : `PascalCase` avec préfixe `I` (ex: `IApiResponse`)
+
+---
+
+## 🚫 **RÈGLES STRICTES**
+
+### **INTERDICTIONS**
+- ❌ **CSS personnalisé** : 100% Tailwind uniquement
+- ❌ **UUIDs en dur** : Toujours utiliser des sélecteurs dynamiques
+- ❌ **Logique métier dans les composants** : Extraire dans des hooks
+- ❌ **Appels API directs** : Toujours passer par React Query
+- ❌ **Sur-architecture** : Pas de patterns complexes sans besoin réel
+
+### **OBLIGATIONS**
+- ✅ **Types stricts** : Tout doit être typé
+- ✅ **Gestion d'erreurs** : Toujours prévoir les cas d'échec
+- ✅ **Feedback utilisateur** : Loading, success, error states
+- ✅ **Mobile-first** : Responsive design obligatoire
+- ✅ **Accessibilité** : Utiliser les bons éléments HTML
+
+---
+
+## 🔧 **GESTION DES DONNÉES**
+
+### **État serveur (React Query)**
+```typescript
+// ✅ Bon : Hook avec React Query
+export function useStudents() {
+  return useQuery({
+    queryKey: ['students'],
+    queryFn: () => api.get('/students'),
+    staleTime: 5 * 60 * 1000, // 5 min
+  });
+}
+
+// ❌ Éviter : Store Zustand sauf besoin spécifique
+```
+
+### **État local (useState)**
+- Formulaires : React Hook Form
+- État UI temporaire : useState
+- État partagé simple : useState + props
+
+### **État global (Zustand - si vraiment nécessaire)**
+- Authentification utilisateur
+- Préférences globales
+- Données partagées entre features distinctes
+
+---
+
+## 🎯 **GESTION DES ERREURS**
+
+### **Stratégie d'erreur**
+1. **Intercepteur Axios** : Gestion centralisée des erreurs HTTP
+2. **Error Boundaries** : Capture des erreurs React
+3. **Toast notifications** : Feedback utilisateur immédiat
+4. **Fallback UI** : Interface de secours pour les erreurs
+
+### **Types d'erreurs**
+- **Réseau** : Connexion, timeout
+- **Authentification** : Token expiré, accès refusé
+- **Validation** : Données incorrectes
+- **Métier** : Règles business (ex: capacité classe dépassée)
+
+---
+
+## 📱 **DESIGN & UX**
+
+### **Principes UI**
+- **Mobile-first** : Commencer par la version mobile
+- **Design system** : Composants cohérents et réutilisables
+- **Accessibility** : Labels, contraste, navigation clavier
+- **Performance** : Lazy loading, optimisations images
+
+### **Couleurs & thème**
+```javascript
+// Palette principale (à définir dans tailwind.config.js)
+primary: 'indigo',    // Actions principales
+secondary: 'gray',    // Actions secondaires
+success: 'green',     // Succès
+warning: 'yellow',    // Avertissements
+error: 'red',         // Erreurs
+```
+
+---
+
+## 🚀 **DÉPLOIEMENT & MAINTENANCE**
+
+### **Checklist avant commit**
+- [ ] Types TypeScript validés
+- [ ] Tests manuels réalisés
+- [ ] Pas d'erreurs ESLint
+- [ ] STATUS.md mis à jour
+- [ ] Responsive testé
+
+### **Stratégie de release**
+1. **Feature branches** : Développement isolé
+2. **Review rapide** : Validation fonctionnelle
+3. **Merge main** : Déploiement automatique
+4. **Feedback utilisateur** : Ajustements rapides
+
+---
+
+## 📈 **MÉTRIQUES DE QUALITÉ**
+
+### **Objectifs de performance**
+- **Bundle size** : < 500KB gzippé
+- **First paint** : < 2s
+- **Interactive** : < 3s
+- **Accessibilité** : Score > 90%
+
+### **Standards de code**
+- **Type coverage** : 100%
+- **ESLint errors** : 0
+- **Console warnings** : 0 en production
+
+---
+
+*Ces règles évoluent avec le projet. L'important est la livraison de valeur rapide et la satisfaction utilisateur.*
