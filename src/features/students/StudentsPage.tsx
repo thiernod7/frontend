@@ -3,9 +3,12 @@ import { useSearchParams } from 'react-router-dom';
 import { StudentsList } from './components/StudentsList';
 import { StudentDetail } from './components/StudentDetail';
 import { StudentForm } from './components/StudentForm';
+import { logger } from '../../shared/utils/logger';
 import type { TStudent, TStudentSearchParams } from './types';
 
 export function StudentsPage() {
+  logger.feature('StudentsPage', 'Page élèves chargée');
+  
   const [selectedStudent, setSelectedStudent] = useState<TStudent | null>(null);
   const [searchParams, setSearchParams] = useState<TStudentSearchParams>({});
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -14,6 +17,7 @@ export function StudentsPage() {
   // Gérer le paramètre URL create=true depuis le dashboard
   useEffect(() => {
     if (urlSearchParams.get('create') === 'true') {
+      logger.feature('StudentsPage', 'Ouverture formulaire création depuis URL');
       setShowCreateForm(true);
       // Nettoyer l'URL
       urlSearchParams.delete('create');

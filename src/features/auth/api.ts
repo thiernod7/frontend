@@ -19,19 +19,13 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // 📝 LOGS REQUEST
-    console.group(`🚀 [API REQUEST] ${config.method?.toUpperCase()} ${config.url || ''}`);
-    console.log('📍 URL:', `${config.baseURL || ''}${config.url || ''}`);
-    console.log('📦 Headers:', config.headers);
-    if (config.data) {
-      console.log('📄 Data:', config.data);
-    }
-    console.groupEnd();
+    // Logs avec notre système unifié
+    logger.api.request(config.method?.toUpperCase() || 'GET', config.url || '', config.data);
 
     return config;
   },
   (error) => {
-    console.error('❌ [REQUEST ERROR]:', error);
+    logger.api.error('Request interceptor', error);
     return Promise.reject(error);
   }
 );
@@ -39,13 +33,8 @@ api.interceptors.request.use(
 // Intercepteur pour gérer les erreurs d'authentification
 api.interceptors.response.use(
   (response) => {
-    // 📝 LOGS RESPONSE SUCCESS
-    console.group(`✅ [API RESPONSE] ${response.status} ${response.config.method?.toUpperCase()} ${response.config.url || ''}`);
-    console.log('📊 Status:', response.status, response.statusText);
-    console.log('📦 Headers:', response.headers);
-    console.log('📄 Data:', response.data);
-    console.groupEnd();
-
+    // Logs avec notre système unifié
+    logger.api.response(response.status, response.config.url || '', response.data);
     return response;
   },
   (error) => {
@@ -100,20 +89,29 @@ export const authService = {
 export function useLogin() {
   const queryClient = useQueryClient();
   
+  logger.feature('AuthAPI', 'useLogin hook initialisé');
+  
   return useMutation({
-    mutationFn: authService.login,
+    mutationFn: (credentials: TLoginRequest) => {
+      logger.auth.login(credentials.username);
+      logger.feature('AuthAPI', 'Tentative de connexion', { username: credentials.username });
+      return authService.login(credentials);
+    },
     onSuccess: (data) => {
-      console.log('🎉 [AUTH] Connexion réussie:', data);
+      logger.auth.login(data.access_token ? 'Token reçu' : 'Sans token');
+      logger.success('Connexion réussie', { tokenLength: data.access_token?.length || 0 });
+      
       localStorage.setItem('access_token', data.access_token);
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
     onError: (error) => {
-      console.error('❌ [AUTH] Erreur de connexion:', error);
+      logger.error('Erreur de connexion', error);
     },
   });
 }
 
 export function useLogout() {
+  logger.feature('AuthAPI', 'useLogout hook initialisé');
   const queryClient = useQueryClient();
   
   return useMutation({

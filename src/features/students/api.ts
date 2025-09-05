@@ -24,11 +24,23 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    logger.api.request(config.method?.toUpperCase() || 'GET', config.url || '');
+    logger.api.request(config.method?.toUpperCase() || 'GET', config.url || '', config.data);
     return config;
   },
   (error) => {
-    logger.error('Request interceptor error', error);
+    logger.api.error('Request interceptor', error);
+    return Promise.reject(error);
+  }
+);
+
+// Intercepteur pour les réponses
+api.interceptors.response.use(
+  (response) => {
+    logger.api.response(response.status, response.config.url || '', response.data);
+    return response;
+  },
+  (error) => {
+    logger.api.error(error.config?.url || 'Unknown URL', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
@@ -132,9 +144,14 @@ export const studentsService = {
  * Hook pour récupérer la liste des élèves
  */
 export function useStudents(params: TStudentSearchParams = {}) {
+  logger.feature('StudentsAPI', 'useStudents hook appelé', params);
+  
   return useQuery({
     queryKey: ['students', params],
-    queryFn: () => studentsService.getStudents(params),
+    queryFn: () => {
+      logger.feature('StudentsAPI', 'Récupération liste élèves', params);
+      return studentsService.getStudents(params);
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
@@ -143,9 +160,14 @@ export function useStudents(params: TStudentSearchParams = {}) {
  * Hook pour récupérer le détail d'un élève
  */
 export function useStudentDetail(studentId: string) {
+  logger.feature('StudentsAPI', 'useStudentDetail hook appelé', { studentId });
+  
   return useQuery({
     queryKey: ['student', studentId],
-    queryFn: () => studentsService.getStudentDetail(studentId),
+    queryFn: () => {
+      logger.feature('StudentsAPI', 'Récupération détail élève', { studentId });
+      return studentsService.getStudentDetail(studentId);
+    },
     enabled: !!studentId, // Ne s'exécute que si l'ID est fourni
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
@@ -157,20 +179,33 @@ export function useStudentDetail(studentId: string) {
 export function useCreateInscription() {
   const queryClient = useQueryClient();
   
+  logger.feature('StudentsAPI', 'useCreateInscription hook initialisé');
+  
   return useMutation({
-    mutationFn: studentsService.createInscription,
+    mutationFn: (data: TInscriptionFormData) => {
+      logger.feature('StudentsAPI', 'Démarrage création inscription', {
+        hasInscriptionData: !!data.inscription_data,
+        hasPhotos: {
+          eleve: !!data.photo_eleve,
+          tuteur: !!data.photo_tuteur,
+          pere: !!data.photo_pere,
+          mere: !!data.photo_mere
+        }
+      });
+      return studentsService.createInscription(data);
+    },
     onSuccess: (data) => {
       // Invalider les caches liés aux élèves
       queryClient.invalidateQueries({ queryKey: ['students'] });
       
       // Log succès
-      logger.feature('students', 'create_inscription', { 
+      logger.success('Inscription créée avec succès', { 
         student_id: data.eleve_id,
         inscription_id: data.id 
       });
     },
     onError: (error) => {
-      logger.error('❌ [STUDENTS] Erreur création inscription:', error);
+      logger.error('Erreur création inscription', error);
     },
   });
 }

@@ -110,16 +110,17 @@ export interface TStudentCreate {
 }
 
 /**
- * Données de création inscription complète
+ * Données de création inscription complète - NOUVEAU FORMAT
  */
 export interface TInscriptionCreate {
   eleve: TStudentCreate;
-  pere?: TParentLink;         // Optionnel
-  mere?: TParentLink;         // Optionnel
-  tuteur: TParentLink;        // OBLIGATOIRE
-  classe_id: string;          // UUID
-  site_id?: string;          // UUID optionnel
-  annee_scolaire_id: string;  // UUID
+  pere?: TParentLink;               // Optionnel (mais obligatoire si tuteur_role = "pere")
+  mere?: TParentLink;               // Optionnel (mais obligatoire si tuteur_role = "mere")
+  tuteur_role: 'pere' | 'mere' | 'autre';  // NOUVEAU : rôle du tuteur
+  tuteur_data?: TParentLink;        // NOUVEAU : données tuteur (seulement si tuteur_role = "autre")
+  classe_id: string;               // UUID
+  site_id?: string;               // UUID optionnel
+  annee_scolaire_id: string;      // UUID
   frais_inscription?: number;
   frais_scolarite?: number;
   documents_fournis?: unknown[];  // TODO: définir DocumentFourniCreate

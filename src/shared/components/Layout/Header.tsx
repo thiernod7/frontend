@@ -1,5 +1,12 @@
+import { logger } from '../../utils/logger';
+
 export function Header() {
+  logger.feature('Header', 'Composant rendu');
+  
   const handleLogout = () => {
+    logger.auth.logout();
+    logger.feature('Header', 'Déconnexion utilisateur');
+    
     localStorage.removeItem('access_token');
     window.location.href = '/login';
   };

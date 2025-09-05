@@ -1,6 +1,7 @@
 // API pour le module Classes
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { logger } from '../../shared/utils/logger';
 import type { 
   TClasse, 
   TAnneeScolaire, 
@@ -31,9 +32,23 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    logger.api.request(config.method?.toUpperCase() || 'GET', config.url || '', config.data);
     return config;
   },
   (error) => {
+    logger.api.error('Request interceptor', error);
+    return Promise.reject(error);
+  }
+);
+
+// Intercepteur pour les réponses
+api.interceptors.response.use(
+  (response) => {
+    logger.api.response(response.status, response.config.url || '', response.data);
+    return response;
+  },
+  (error) => {
+    logger.api.error(error.config?.url || 'Unknown URL', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
@@ -134,16 +149,26 @@ const niveauxService = {
 
 // React Query hooks - CLASSES
 export function useClasses(params: TClassesSearchParams = {}) {
+  logger.feature('ClassesAPI', 'useClasses hook appelé', params);
+  
   return useQuery({
     queryKey: ['classes', params],
-    queryFn: () => classesService.getClasses(params),
+    queryFn: () => {
+      logger.feature('ClassesAPI', 'Récupération liste classes', params);
+      return classesService.getClasses(params);
+    },
   });
 }
 
 export function useClasse(id: string) {
+  logger.feature('ClassesAPI', 'useClasse hook appelé', { id });
+  
   return useQuery({
     queryKey: ['classe', id],
-    queryFn: () => classesService.getClasse(id),
+    queryFn: () => {
+      logger.feature('ClassesAPI', 'Récupération détail classe', { id });
+      return classesService.getClasse(id);
+    },
     enabled: !!id,
   });
 }
@@ -173,16 +198,26 @@ export function useUpdateClasse() {
 }
 
 export function useCurrentYear() {
+  logger.feature('ClassesAPI', 'useCurrentYear hook appelé');
+  
   return useQuery({
     queryKey: ['currentYear'],
-    queryFn: classesService.getCurrentYear,
+    queryFn: () => {
+      logger.feature('ClassesAPI', 'Récupération année scolaire courante');
+      return classesService.getCurrentYear();
+    },
   });
 }
 
 export function useAllYears() {
+  logger.feature('ClassesAPI', 'useAllYears hook appelé');
+  
   return useQuery({
     queryKey: ['allYears'],
-    queryFn: classesService.getAllYears,
+    queryFn: () => {
+      logger.feature('ClassesAPI', 'Récupération toutes les années scolaires');
+      return classesService.getAllYears();
+    },
   });
 }
 

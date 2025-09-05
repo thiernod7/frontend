@@ -27,7 +27,7 @@
   - `photo_tuteur?: File`
 - **Response**: `InscriptionRead`
 
-## 📤 Format d'entrée - InscriptionCreate
+## 📤 Format d'entrée - InscriptionCreate ⚠️ **NOUVEAU FORMAT**
 
 ```json
 {
@@ -41,9 +41,9 @@
     "lieu_naissance": "string",
     "site_id": "uuid?" // Optional
   },
-  "pere": {
-    "id": "uuid?",      // Père existant OU
-    "data": {           // Nouveau père
+  "pere": {                 // OPTIONNEL
+    "id": "uuid?",          // Père existant OU
+    "data": {               // Nouveau père
       "nom": "string",
       "prenom": "string",
       "sexe": "string", 
@@ -53,9 +53,9 @@
       "lieu_travail": "string?"
     }
   },
-  "mere": {
-    "id": "uuid?",      // Mère existante OU  
-    "data": {           // Nouvelle mère
+  "mere": {                 // OPTIONNEL
+    "id": "uuid?",          // Mère existante OU  
+    "data": {               // Nouvelle mère
       "nom": "string",
       "prenom": "string",
       "sexe": "string",
@@ -65,9 +65,10 @@
       "lieu_travail": "string?"
     }
   },
-  "tuteur": {           // OBLIGATOIRE
-    "id": "uuid?",      // Tuteur existant OU
-    "data": {           // Nouveau tuteur
+  "tuteur_role": "pere" | "mere" | "autre",  // OBLIGATOIRE - NOUVEAU !
+  "tuteur_data": {          // OBLIGATOIRE seulement si tuteur_role = "autre"
+    "id": "uuid?",          // Tuteur existant OU
+    "data": {               // Nouveau tuteur
       "nom": "string",
       "prenom": "string",
       "sexe": "string",
@@ -163,8 +164,19 @@
 
 ## ⚠️ Contraintes identifiées
 
+### **🔥 NOUVELLES RÈGLES TUTEUR** (Version mise à jour)
+- ✅ **tuteur_role OBLIGATOIRE** : doit être "pere", "mere" ou "autre"
+- ✅ **Si tuteur_role = "pere"** : 
+  - Le champ `pere` DOIT être fourni
+  - Le champ `tuteur_data` DOIT être `null`
+- ✅ **Si tuteur_role = "mere"** :
+  - Le champ `mere` DOIT être fourni  
+  - Le champ `tuteur_data` DOIT être `null`
+- ✅ **Si tuteur_role = "autre"** :
+  - Le champ `tuteur_data` DOIT être fourni
+  - Les champs `pere`/`mere` sont optionnels
+
 ### **Business Rules**
-- ✅ **Tuteur OBLIGATOIRE** (père/mère optionnels)
 - ✅ **ParentLink validation** : soit `id` (existant) soit `data` (nouveau), pas les deux
 - ✅ **classe_id et annee_scolaire_id OBLIGATOIRES**
 - ✅ **Multi-site supporté** (site_id optionnel)
@@ -270,3 +282,31 @@ if (photoTuteur) formData.append('photo_tuteur', photoTuteur);
 **Date d'analyse** : 5 septembre 2025  
 **Status** : ✅ Investigation terminée - Prêt pour implémentation  
 **Endpoint key** : `POST /inscriptions/` avec multipart/form-data + JSON stringifié
+
+## 🔧 Adaptations Frontend Réalisées
+
+### 1. Types TypeScript mis à jour (src/features/students/types.ts)
+- ✅ Interface `TInscriptionCreate` mise à jour avec les nouveaux champs
+- ✅ `tuteur_role` ajouté avec type union `'pere' | 'mere' | 'autre'`
+- ✅ `tuteur_data` ajouté avec structure conditionnelle
+
+### 2. Logique de construction des données (StudentForm.tsx)
+- ✅ Construction adaptée pour utiliser `tuteur_role` au lieu de `tuteur`
+- ✅ Logique conditionnelle pour `tuteur_data` (seulement si `tuteur_role === 'autre'`)
+- ✅ Validation côté frontend des règles backend
+
+### 3. Validations ajoutées
+- ✅ Vérification que le parent désigné comme tuteur existe
+- ✅ Validation des données tuteur complètes si `tuteur_role === 'autre'`
+- ✅ Contrôle qu'au moins un parent est renseigné
+- ✅ Messages d'erreur explicites avec logging
+
+### 4. Logging intégré
+- ✅ Suivi des étapes de construction des données
+- ✅ Logging des validations et erreurs
+- ✅ Traçabilité complète du processus d'inscription
+
+### 5. Compilation vérifiée
+- ✅ Code compile sans erreurs TypeScript
+- ✅ Build production réussie
+- ✅ Prêt pour tests d'intégration

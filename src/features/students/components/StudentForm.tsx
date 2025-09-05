@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useCreateInscription, useSearchParents } from '../api';
 import { useClasses, useCurrentYear } from '../../classes/api';
 import type { TInscriptionCreate } from '../types';
+import { logger } from '../../../shared/utils/logger';
+import { PhotoUpload } from '../../../shared/components/PhotoUpload';
 
 interface StudentFormProps {
   onSuccess?: () => void;
@@ -33,7 +35,8 @@ interface FormData {
   adresse_quartier: string;
   classe_id: string;
   
-  // Étape 2: Tuteur
+  // Étape 3: Tuteur (maintenant après parents)
+  tuteur_relation: 'pere' | 'mere' | 'autre'; // Relation avec l'élève
   tuteur_nom: string;
   tuteur_prenom: string;
   tuteur_sexe: 'M' | 'F';
@@ -65,9 +68,13 @@ interface FormData {
 }
 
 export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
+  logger.feature('StudentForm', 'Initialisation du composant', { onSuccess: !!onSuccess, onCancel: !!onCancel });
+  
   // États du formulaire
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 5; // 1: Élève, 2: Tuteur, 3: Parents, 4: Photos, 5: Soumission
+  const totalSteps = 4; // 1: Élève+photo, 2: Parents+photos, 3: Tuteur+photo, 4: Soumission
+  
+  logger.feature('StudentForm', 'Configuration initiale', { currentStep, totalSteps });
   
   // États pour les données du formulaire
   const [formData, setFormData] = useState<FormData>({
@@ -79,6 +86,7 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
     telephone: '',
     adresse_quartier: '',
     classe_id: '',
+    tuteur_relation: 'autre',
     tuteur_nom: '',
     tuteur_prenom: '',
     tuteur_sexe: 'F',
@@ -108,6 +116,8 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
     mere_profession: '',
     mere_lieu_travail: '',
   });
+  
+  logger.feature('StudentForm', 'FormData initialisé', formData);
 
   // États pour les photos
   const [photos, setPhotos] = useState<{
@@ -117,10 +127,22 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
     mere?: File;
   }>({});
   
+  logger.feature('StudentForm', 'Photos state initialisé', Object.keys(photos));
+  
   // Hooks API
   const createInscriptionMutation = useCreateInscription();
+  
+  logger.feature('StudentForm', 'Mutation créée', { isLoading: createInscriptionMutation.isPending });
   const { data: classes, isLoading: classesLoading } = useClasses();
   const { data: currentYear, isLoading: yearLoading, error: yearError } = useCurrentYear();
+  
+  logger.feature('StudentForm', 'Données chargées', {
+    classesCount: classes?.length || 0,
+    classesLoading,
+    currentYear: currentYear?.nom || 'Non défini',
+    yearLoading,
+    hasYearError: !!yearError
+  });
   
   // États pour la recherche de parents
   const [parentSearchTerms, setParentSearchTerms] = useState({
@@ -135,13 +157,88 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
   const { data: mereSearchResults } = useSearchParents(
     parentSearchTerms.mere.length >= 3 ? parentSearchTerms.mere : ''
   );  const handleInputChange = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setFormData(prev => {
+      const newData = { ...prev, [field]: value };
+      
+      // Si on change la relation du tuteur, synchroniser les données
+      if (field === 'tuteur_relation') {
+        logger.feature('StudentForm', 'Changement relation tuteur', { newRelation: value, pereMode: prev.pere_mode, mereMode: prev.mere_mode });
+        
+        if (value === 'pere' && prev.pere_mode !== 'none') {
+          logger.feature('StudentForm', 'Synchronisation père → tuteur', {
+            pere: { nom: prev.pere_nom, prenom: prev.pere_prenom, telephone: prev.pere_telephone }
+          });
+          
+          // Copier les données du père vers le tuteur
+          newData.tuteur_nom = prev.pere_nom;
+          newData.tuteur_prenom = prev.pere_prenom;
+          newData.tuteur_sexe = prev.pere_sexe;
+          newData.tuteur_telephone = prev.pere_telephone;
+          newData.tuteur_adresse = prev.pere_adresse;
+          newData.tuteur_profession = prev.pere_profession;
+          newData.tuteur_lieu_travail = prev.pere_lieu_travail;
+        } else if (value === 'mere' && prev.mere_mode !== 'none') {
+          logger.feature('StudentForm', 'Synchronisation mère → tuteur', {
+            mere: { nom: prev.mere_nom, prenom: prev.mere_prenom, telephone: prev.mere_telephone }
+          });
+          
+          // Copier les données de la mère vers le tuteur
+          newData.tuteur_nom = prev.mere_nom;
+          newData.tuteur_prenom = prev.mere_prenom;
+          newData.tuteur_sexe = prev.mere_sexe;
+          newData.tuteur_telephone = prev.mere_telephone;
+          newData.tuteur_adresse = prev.mere_adresse;
+          newData.tuteur_profession = prev.mere_profession;
+          newData.tuteur_lieu_travail = prev.mere_lieu_travail;
+        } else if (value === 'autre') {
+          logger.feature('StudentForm', 'Reset tuteur pour saisie manuelle');
+          
+          // Reset les données du tuteur pour saisie manuelle
+          newData.tuteur_nom = '';
+          newData.tuteur_prenom = '';
+          newData.tuteur_sexe = 'F';
+          newData.tuteur_telephone = '';
+          newData.tuteur_adresse = '';
+          newData.tuteur_profession = '';
+          newData.tuteur_lieu_travail = '';
+        }
+      }
+      
+      // Log seulement pour les champs importants (sélection, relation, mode)
+      if (field.includes('_mode') || field === 'tuteur_relation' || field === 'classe_id' || field === 'sexe') {
+        logger.feature('StudentForm', `Champ important modifié: ${field}`, { newValue: value });
+      }
+      
+      return newData;
+    });
   };
 
+  // Nouvelle fonction pour gérer la perte de focus avec logs
+  const handleFieldBlur = (field: keyof FormData, value: string) => {
+    logger.feature('StudentForm', `Champ complété: ${field}`, { 
+      value: value,
+      isEmpty: !value.trim(),
+      length: value.length,
+      etape: currentStep
+    });
+  };
+
+  // Fonction utilitaire pour créer les props de champ avec logs sur blur
+  const createFieldProps = (field: keyof FormData) => ({
+    value: formData[field],
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => 
+      handleInputChange(field, e.target.value),
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => 
+      handleFieldBlur(field, e.target.value)
+  });
+
   const handlePhotoChange = (type: keyof typeof photos, file: File | null) => {
+    logger.feature('StudentForm', 'Changement de photo', { 
+      type, 
+      fileName: file?.name || 'Supprimé',
+      fileSize: file?.size || 0 
+    });
+    
     setPhotos(prev => ({
       ...prev,
       [type]: file || undefined
@@ -150,22 +247,31 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
 
   // Handlers pour la gestion des parents
   const handleParentModeChange = (parent: 'pere' | 'mere', mode: ParentMode) => {
+    logger.feature('StudentForm', `Changement mode parent: ${parent}`, { newMode: mode });
+    
     const modeField = `${parent}_mode` as keyof FormData;
-    setFormData(prev => ({
-      ...prev,
-      [modeField]: mode,
-      // Reset les données du parent quand on change de mode
-      [`${parent}_id`]: '',
-      [`${parent}_nom`]: '',
-      [`${parent}_prenom`]: '',
-      [`${parent}_telephone`]: '',
-      [`${parent}_adresse`]: '',
-      [`${parent}_profession`]: '',
-      [`${parent}_lieu_travail`]: '',
-    }));
+    setFormData(prev => {
+      const newData = {
+        ...prev,
+        [modeField]: mode,
+        // Reset les données du parent quand on change de mode
+        [`${parent}_id`]: '',
+        [`${parent}_nom`]: '',
+        [`${parent}_prenom`]: '',
+        [`${parent}_telephone`]: '',
+        [`${parent}_adresse`]: '',
+        [`${parent}_profession`]: '',
+        [`${parent}_lieu_travail`]: '',
+      };
+      
+      logger.feature('StudentForm', `Parent ${parent} reseté`, newData);
+      return newData;
+    });
   };
 
   const handleParentSearchChange = (parent: 'pere' | 'mere', searchTerm: string) => {
+    logger.feature('StudentForm', `Recherche parent: ${parent}`, { searchTerm });
+    
     setParentSearchTerms(prev => ({
       ...prev,
       [parent]: searchTerm
@@ -201,18 +307,52 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    logger.feature('StudentForm', 'Soumission formulaire', { currentStep, totalSteps });
     
     if (currentStep < totalSteps) {
       // Aller à l'étape suivante
+      logger.feature('StudentForm', 'Navigation vers étape suivante via soumission');
       setCurrentStep(currentStep + 1);
       return;
     }
 
     // Dernière étape : soumettre
+    logger.feature('StudentForm', 'Début soumission finale', { formData, photos });
+    
     try {
       if (!currentYear) {
+        logger.error('StudentForm', 'Année scolaire courante non disponible');
         throw new Error('Année scolaire courante non disponible');
       }
+
+      logger.feature('StudentForm', 'Construction données inscription', { anneeScolaire: currentYear.nom });
+
+      // Validation des règles backend
+      if (formData.tuteur_relation === 'pere' && formData.pere_mode === 'none') {
+        logger.error('StudentForm - Validation', 'Père requis quand tuteur_role = pere');
+        throw new Error('Le père doit être renseigné pour être désigné comme tuteur');
+      }
+      
+      if (formData.tuteur_relation === 'mere' && formData.mere_mode === 'none') {
+        logger.error('StudentForm - Validation', 'Mère requise quand tuteur_role = mere');
+        throw new Error('La mère doit être renseignée pour être désignée comme tuteur');
+      }
+      
+      if (formData.tuteur_relation === 'autre' && (!formData.tuteur_nom || !formData.tuteur_prenom)) {
+        logger.error('StudentForm - Validation', 'Données tuteur requises quand tuteur_role = autre');
+        throw new Error('Les informations du tuteur doivent être complétées');
+      }
+      
+      logger.feature('StudentForm', 'Validations passées', { tuteur_relation: formData.tuteur_relation });
+
+      // Validation qu'au moins un parent existe
+      const aucunParent = formData.pere_mode === 'none' && formData.mere_mode === 'none';
+      if (aucunParent) {
+        logger.error('StudentForm - Validation', 'Au moins un parent requis');
+        throw new Error('Au moins un parent (père ou mère) doit être renseigné');
+      }
+      
+      logger.feature('StudentForm', 'Validation parent existence passée');
 
       const inscriptionData: TInscriptionCreate = {
         eleve: {
@@ -225,19 +365,25 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
           lieu_naissance: formData.lieu_naissance,
         },
         
-        tuteur: {
-          data: {
-            nom: formData.tuteur_nom,
-            prenom: formData.tuteur_prenom,
-            sexe: formData.tuteur_sexe,
-            telephone: formData.tuteur_telephone,
-            adresse_quartier: formData.tuteur_adresse,
-            profession: formData.tuteur_profession,
-            lieu_travail: formData.tuteur_lieu_travail,
-          }
-        },
+        // NOUVEAU FORMAT : tuteur_role + tuteur_data conditionnelle
+        tuteur_role: formData.tuteur_relation as 'pere' | 'mere' | 'autre',
         
-        // Père (optionnel)
+        // tuteur_data uniquement si tuteur_role = "autre"
+        ...(formData.tuteur_relation === 'autre' && {
+          tuteur_data: {
+            data: {
+              nom: formData.tuteur_nom,
+              prenom: formData.tuteur_prenom,
+              sexe: formData.tuteur_sexe,
+              telephone: formData.tuteur_telephone,
+              adresse_quartier: formData.tuteur_adresse,
+              profession: formData.tuteur_profession,
+              lieu_travail: formData.tuteur_lieu_travail,
+            }
+          }
+        }),
+        
+        // Père (optionnel, mais OBLIGATOIRE si tuteur_role = "pere")
         ...(formData.pere_mode !== 'none' && {
           pere: formData.pere_mode === 'existing' 
             ? { id: formData.pere_id }
@@ -275,6 +421,8 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
         annee_scolaire_id: currentYear.id,
       };
       
+      logger.feature('StudentForm', 'Données inscription construites', inscriptionData);
+      
       const submissionData = {
         inscription_data: JSON.stringify(inscriptionData),
         photo_eleve: photos.eleve,
@@ -283,26 +431,80 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
         photo_mere: photos.mere,
       };
       
+      logger.feature('StudentForm', 'Données de soumission prêtes', {
+        hasInscriptionData: !!submissionData.inscription_data,
+        hasPhotoEleve: !!submissionData.photo_eleve,
+        hasPhotoTuteur: !!submissionData.photo_tuteur,
+        hasPhotoPere: !!submissionData.photo_pere,
+        hasPhotoMere: !!submissionData.photo_mere,
+      });
+      
+      logger.feature('StudentForm', 'Envoi vers API...');
       await createInscriptionMutation.mutateAsync(submissionData);
+      
+      logger.success('StudentForm', 'Inscription créée avec succès !');
       onSuccess?.();
       
     } catch (error) {
+      logger.error('StudentForm - Erreur création élève', error);
       console.error('❌ [STUDENT-FORM] Erreur création élève:', error);
     }
   };
 
+  // Fonction pour logger les données d'une étape
+  const logStepData = (step: number) => {
+    switch (step) {
+      case 1:
+        logger.feature('StudentForm', 'Données Étape 1 (Élève)', {
+          nom: formData.nom,
+          prenom: formData.prenom,
+          sexe: formData.sexe,
+          classe_id: formData.classe_id,
+          hasDate: !!formData.date_naissance,
+          hasPhone: !!formData.telephone
+        });
+        break;
+      case 2:
+        logger.feature('StudentForm', 'Données Étape 2 (Parents)', {
+          pere_mode: formData.pere_mode,
+          pere_complete: formData.pere_mode !== 'none' && formData.pere_nom && formData.pere_prenom,
+          mere_mode: formData.mere_mode,
+          mere_complete: formData.mere_mode !== 'none' && formData.mere_nom && formData.mere_prenom
+        });
+        break;
+      case 3:
+        logger.feature('StudentForm', 'Données Étape 3 (Tuteur)', {
+          tuteur_relation: formData.tuteur_relation,
+          tuteur_complete: formData.tuteur_nom && formData.tuteur_prenom && formData.tuteur_telephone,
+          auto_filled: formData.tuteur_relation !== 'autre'
+        });
+        break;
+      case 4:
+        logger.feature('StudentForm', 'Données Étape 4 (Finalisation)', {
+          photos_count: Object.keys(photos).filter(key => photos[key as keyof typeof photos]).length,
+          photo_types: Object.keys(photos).filter(key => photos[key as keyof typeof photos])
+        });
+        break;
+    }
+  };
+
   const nextStep = () => {
+    // Logger les données de l'étape actuelle avant navigation
+    logStepData(currentStep);
+    
+    logger.feature('StudentForm', 'Navigation suivant', { fromStep: currentStep, toStep: currentStep + 1 });
     if (currentStep < totalSteps) setCurrentStep(currentStep + 1);
   };
 
   const prevStep = () => {
+    logger.feature('StudentForm', 'Navigation précédent', { fromStep: currentStep, toStep: currentStep - 1 });
     if (currentStep > 1) setCurrentStep(currentStep - 1);
   };
 
   const stepTitles = [
     '👤 Informations élève',
-    '👥 Famille (Tuteur)',
-    '👨‍👩‍👧‍👦 Parents (optionnel)',
+    '‍👩‍👧‍👦 Parents (optionnel)',
+    '👥 Tuteur (obligatoire)',
     '📸 Photos & Finalisation'
   ];
 
@@ -347,93 +549,106 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Étape 1: Informations élève */}
         {currentStep === 1 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Prénom *
-                </label>
-                <input
-                  type="text"
-                  value={formData.prenom}
-                  onChange={(e) => handleInputChange('prenom', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex: Jean"
-                  required
+          <div className="space-y-6">
+            {/* Photo et informations principales en grille */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Photo de l'élève - Première colonne */}
+              <div className="lg:row-span-2 flex justify-center lg:justify-start">
+                <PhotoUpload
+                  label="Photo élève"
+                  currentPhoto={photos.eleve}
+                  onPhotoChange={(file) => handlePhotoChange('eleve', file)}
+                  variant="circular"
+                  size="lg"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Nom *
-                </label>
-                <input
-                  type="text"
-                  value={formData.nom}
-                  onChange={(e) => handleInputChange('nom', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex: Dupont"
-                  required
-                />
+              {/* Informations principales - Colonnes 2-4 */}
+              <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Prénom *
+                  </label>
+                  <input
+                    type="text"
+                    {...createFieldProps('prenom')}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Ex: Jean"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Nom *
+                  </label>
+                  <input
+                    type="text"
+                    {...createFieldProps('nom')}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Ex: Dupont"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Sexe *
+                  </label>
+                  <select
+                    value={formData.sexe}
+                    onChange={(e) => handleInputChange('sexe', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                  >
+                    <option value="M">Masculin</option>
+                    <option value="F">Féminin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Date de naissance *
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.date_naissance}
+                    onChange={(e) => handleInputChange('date_naissance', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Sexe *
-                </label>
-                <select
-                  value={formData.sexe}
-                  onChange={(e) => handleInputChange('sexe', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                >
-                  <option value="M">Masculin</option>
-                  <option value="F">Féminin</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Date de naissance *
-                </label>
-                <input
-                  type="date"
-                  value={formData.date_naissance}
-                  onChange={(e) => handleInputChange('date_naissance', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                />
-              </div>
-
+            {/* Autres informations */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Téléphone *
                 </label>
                 <input
                   type="tel"
-                  value={formData.telephone}
-                  onChange={(e) => handleInputChange('telephone', e.target.value)}
+                  {...createFieldProps('telephone')}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Ex: +225 01 02 03 04 05"
                   required
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Lieu de naissance *
-              </label>
-              <input
-                type="text"
-                value={formData.lieu_naissance}
-                onChange={(e) => handleInputChange('lieu_naissance', e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Ex: Abidjan, Côte d'Ivoire"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Lieu de naissance *
+                </label>
+                <input
+                  type="text"
+                  value={formData.lieu_naissance}
+                  onChange={(e) => handleInputChange('lieu_naissance', e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Ex: Abidjan, Côte d'Ivoire"
+                  required
+                />
+              </div>
             </div>
 
             <div>
@@ -508,82 +723,227 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
           </div>
         )}
 
-        {/* Étape 2: Tuteur */}
-        {currentStep === 2 && (
+        {/* Étape 3: Tuteur */}
+        {currentStep === 3 && (
           <div className="space-y-4">
             <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-              <h4 className="text-yellow-800 font-medium">👥 Informations du Tuteur</h4>
+              <h4 className="text-yellow-800 font-medium">👥 Désignation du Tuteur</h4>
               <p className="text-yellow-700 text-sm mt-1">
                 Le tuteur est <strong>obligatoire</strong> et sera la personne de contact principale.
+                Choisissez parmi les parents renseignés ou désignez une autre personne.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Prénom du tuteur *
-                </label>
-                <input
-                  type="text"
-                  value={formData.tuteur_prenom}
-                  onChange={(e) => handleInputChange('tuteur_prenom', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex: Marie"
-                  required
-                />
-              </div>
+            {/* Sélection du tuteur */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Qui sera le tuteur de l'élève ? *
+              </label>
+              <div className="space-y-3">
+                
+                {/* Option: Le père (si renseigné) */}
+                {formData.pere_mode !== 'none' && formData.pere_nom && (
+                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="tuteur_relation"
+                      value="pere"
+                      checked={formData.tuteur_relation === 'pere'}
+                      onChange={(e) => handleInputChange('tuteur_relation', e.target.value)}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 mt-1"
+                    />
+                    <div className="ml-3">
+                      <div className="flex items-center">
+                        <span className="text-lg mr-2">👨</span>
+                        <span className="font-medium text-gray-900">Le père sera le tuteur</span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {formData.pere_prenom} {formData.pere_nom}
+                        {formData.pere_telephone && ` - ${formData.pere_telephone}`}
+                      </p>
+                    </div>
+                  </label>
+                )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Nom du tuteur *
+                {/* Option: La mère (si renseignée) */}
+                {formData.mere_mode !== 'none' && formData.mere_nom && (
+                  <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="tuteur_relation"
+                      value="mere"
+                      checked={formData.tuteur_relation === 'mere'}
+                      onChange={(e) => handleInputChange('tuteur_relation', e.target.value)}
+                      className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 mt-1"
+                    />
+                    <div className="ml-3">
+                      <div className="flex items-center">
+                        <span className="text-lg mr-2">👩</span>
+                        <span className="font-medium text-gray-900">La mère sera le tuteur</span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {formData.mere_prenom} {formData.mere_nom}
+                        {formData.mere_telephone && ` - ${formData.mere_telephone}`}
+                      </p>
+                    </div>
+                  </label>
+                )}
+
+                {/* Option: Autre personne */}
+                <label className="flex items-start p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="tuteur_relation"
+                    value="autre"
+                    checked={formData.tuteur_relation === 'autre'}
+                    onChange={(e) => handleInputChange('tuteur_relation', e.target.value)}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 mt-1"
+                  />
+                  <div className="ml-3">
+                    <div className="flex items-center">
+                      <span className="text-lg mr-2">👤</span>
+                      <span className="font-medium text-gray-900">Une autre personne sera le tuteur</span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Grand-parent, oncle/tante, tuteur légal, personne tierce, etc.
+                    </p>
+                  </div>
                 </label>
-                <input
-                  type="text"
-                  value={formData.tuteur_nom}
-                  onChange={(e) => handleInputChange('tuteur_nom', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex: Dupont"
-                  required
-                />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Sexe *
-                </label>
-                <select
-                  value={formData.tuteur_sexe}
-                  onChange={(e) => handleInputChange('tuteur_sexe', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                >
-                  <option value="F">Féminin</option>
-                  <option value="M">Masculin</option>
-                </select>
+            {/* Message informatif si parent sélectionné */}
+            {formData.tuteur_relation !== 'autre' && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <span className="text-green-600 text-lg">✅</span>
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-green-900 font-medium">Tuteur désigné</h4>
+                    <p className="text-green-800 text-sm mt-1">
+                      Le {formData.tuteur_relation === 'pere' ? 'père' : 'mère'} sera le tuteur de l'élève.
+                      Voici ses informations :
+                    </p>
+                    <div className="mt-3 p-3 bg-white rounded border">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="font-medium text-gray-700">Nom complet:</span>
+                          <p className="text-gray-900">{formData.tuteur_prenom} {formData.tuteur_nom}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Téléphone:</span>
+                          <p className="text-gray-900">{formData.tuteur_telephone || 'Non renseigné'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Adresse:</span>
+                          <p className="text-gray-900">{formData.tuteur_adresse || 'Non renseignée'}</p>
+                        </div>
+                        <div>
+                          <span className="font-medium text-gray-700">Profession:</span>
+                          <p className="text-gray-900">{formData.tuteur_profession || 'Non renseignée'}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-green-700 text-xs mt-2">
+                      💡 Si vous souhaitez modifier ces informations, retournez à l'étape précédente 
+                      ou sélectionnez "Une autre personne" pour saisir de nouvelles données.
+                    </p>
+                  </div>
+                </div>
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Téléphone *
-                </label>
-                <input
-                  type="tel"
-                  value={formData.tuteur_telephone}
-                  onChange={(e) => handleInputChange('tuteur_telephone', e.target.value)}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="Ex: +225 07 08 09 10 11"
-                  required
-                />
-              </div>
+            {/* Champs pour tuteur (affichés seulement si "autre" est sélectionné) */}
+            {formData.tuteur_relation === 'autre' && (
+              <div className="space-y-6">
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                  <p className="text-gray-700 text-sm">
+                    👤 <strong>Saisie des informations du tuteur</strong> - Renseignez les détails de la personne qui sera responsable de l'élève.
+                  </p>
+                </div>
+                
+                {/* Photo et informations principales en grille */}
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Photo du tuteur - Première colonne */}
+                  <div className="lg:row-span-2 flex justify-center lg:justify-start">
+                    <PhotoUpload
+                      label="Photo tuteur"
+                      currentPhoto={photos.tuteur}
+                      onPhotoChange={(file) => handlePhotoChange('tuteur', file)}
+                      variant="circular"
+                      size="lg"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Profession
-                </label>
-                <input
-                  type="text"
+                  {/* Informations principales - Colonnes 2-4 */}
+                  <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Prénom du tuteur *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.tuteur_prenom}
+                        onChange={(e) => handleInputChange('tuteur_prenom', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ex: Marie"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Nom du tuteur *
+                      </label>
+                      <input
+                        type="text"
+                        {...createFieldProps('tuteur_nom')}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ex: Dupont"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Sexe *
+                      </label>
+                      <select
+                        value={formData.tuteur_sexe}
+                        onChange={(e) => handleInputChange('tuteur_sexe', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        required
+                      >
+                        <option value="F">Féminin</option>
+                        <option value="M">Masculin</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Téléphone *
+                      </label>
+                      <input
+                        type="tel"
+                        value={formData.tuteur_telephone}
+                        onChange={(e) => handleInputChange('tuteur_telephone', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="Ex: +225 07 08 09 10 11"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Autres informations */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Profession
+                    </label>
+                    <input
+                      type="text"
                   value={formData.tuteur_profession}
                   onChange={(e) => handleInputChange('tuteur_profession', e.target.value)}
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
@@ -618,11 +978,13 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
                 placeholder="Ex: École Primaire Sainte-Marie"
               />
             </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Étape 3: Parents optionnels */}
-        {currentStep === 3 && (
+        {/* Étape 2: Parents optionnels */}
+        {currentStep === 2 && (
           <div className="space-y-6">
             <div className="text-center mb-6">
               <span className="text-6xl">👨‍👩‍👧‍👦</span>
@@ -736,7 +1098,15 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
 
                   {/* Formulaire nouveau père */}
                   {formData.pere_mode === 'new' && (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      {/* Photo du père */}
+                      <PhotoUpload
+                        label="Photo du père"
+                        currentPhoto={photos.pere}
+                        onPhotoChange={(file) => handlePhotoChange('pere', file)}
+                        variant="inline"
+                      />
+                      
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Prénom *</label>
@@ -898,7 +1268,15 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
 
                   {/* Formulaire nouvelle mère */}
                   {formData.mere_mode === 'new' && (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
+                      {/* Photo de la mère */}
+                      <PhotoUpload
+                        label="Photo de la mère"
+                        currentPhoto={photos.mere}
+                        onPhotoChange={(file) => handlePhotoChange('mere', file)}
+                        variant="inline"
+                      />
+                      
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className="block text-sm font-medium text-gray-700">Prénom *</label>
@@ -969,92 +1347,17 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
           </div>
         )}
 
-        {/* Étape 4: Photos */}
+        {/* Étape 4: Confirmation et soumission */}
         {currentStep === 4 && (
           <div className="space-y-6">
             <div className="text-center">
-              <span className="text-6xl">📸</span>
+              <span className="text-6xl">✅</span>
               <h3 className="text-lg font-semibold text-gray-900 mt-4">
-                Photos & Finalisation
+                Finalisation de l'inscription
               </h3>
               <p className="text-gray-600 mt-2">
-                Ajoutez les photos des personnes si disponibles, puis finalisez l'inscription.
+                Vérifiez les informations et finalisez l'inscription de l'élève.
               </p>
-            </div>
-
-            {/* Zone photos */}
-            <div className="bg-blue-50 rounded-lg p-6">
-              <h4 className="text-lg font-semibold text-gray-900 mb-4">📷 Photos (optionnelles)</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Photo élève */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    👤 Photo de l'élève
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handlePhotoChange('eleve', e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                  />
-                  {photos.eleve && (
-                    <p className="text-xs text-green-600 mt-1">✓ {photos.eleve.name}</p>
-                  )}
-                </div>
-
-                {/* Photo tuteur */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    👥 Photo du tuteur
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handlePhotoChange('tuteur', e.target.files?.[0] || null)}
-                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                  />
-                  {photos.tuteur && (
-                    <p className="text-xs text-green-600 mt-1">✓ {photos.tuteur.name}</p>
-                  )}
-                </div>
-
-                {/* Photo père (si configuré) */}
-                {formData.pere_mode !== 'none' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      👨 Photo du père
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePhotoChange('pere', e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                    {photos.pere && (
-                      <p className="text-xs text-green-600 mt-1">✓ {photos.pere.name}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Photo mère (si configurée) */}
-                {formData.mere_mode !== 'none' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      👩 Photo de la mère
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handlePhotoChange('mere', e.target.files?.[0] || null)}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
-                    />
-                    {photos.mere && (
-                      <p className="text-xs text-green-600 mt-1">✓ {photos.mere.name}</p>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Récapitulatif complet */}
@@ -1072,6 +1375,7 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
                     <p><strong>Lieu de naissance:</strong> {formData.lieu_naissance || 'Non défini'}</p>
                     <p><strong>Téléphone:</strong> {formData.telephone || 'Non défini'}</p>
                     <p><strong>Adresse:</strong> {formData.adresse_quartier || 'Non définie'}</p>
+                    {photos.eleve && <p><strong>Photo:</strong> ✅ {photos.eleve.name}</p>}
                   </div>
                 </div>
 
@@ -1092,16 +1396,25 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
                 <div>
                   <h5 className="font-medium text-gray-900 mb-2">👥 Tuteur (obligatoire)</h5>
                   <div className="text-sm text-gray-600 space-y-1 bg-white rounded-md p-3">
-                    <p><strong>Nom complet:</strong> {formData.tuteur_prenom} {formData.tuteur_nom}</p>
-                    <p><strong>Sexe:</strong> {formData.tuteur_sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
-                    <p><strong>Téléphone:</strong> {formData.tuteur_telephone}</p>
-                    <p><strong>Adresse:</strong> {formData.tuteur_adresse}</p>
-                    {formData.tuteur_profession && (
-                      <p><strong>Profession:</strong> {formData.tuteur_profession}</p>
+                    {formData.tuteur_relation === 'pere' && formData.pere_mode !== 'none' ? (
+                      <p><strong>Le père:</strong> {formData.pere_prenom} {formData.pere_nom}</p>
+                    ) : formData.tuteur_relation === 'mere' && formData.mere_mode !== 'none' ? (
+                      <p><strong>La mère:</strong> {formData.mere_prenom} {formData.mere_nom}</p>
+                    ) : (
+                      <>
+                        <p><strong>Nom complet:</strong> {formData.tuteur_prenom} {formData.tuteur_nom}</p>
+                        <p><strong>Sexe:</strong> {formData.tuteur_sexe === 'M' ? 'Masculin' : 'Féminin'}</p>
+                        <p><strong>Téléphone:</strong> {formData.tuteur_telephone}</p>
+                        <p><strong>Adresse:</strong> {formData.tuteur_adresse}</p>
+                        {formData.tuteur_profession && (
+                          <p><strong>Profession:</strong> {formData.tuteur_profession}</p>
+                        )}
+                        {formData.tuteur_lieu_travail && (
+                          <p><strong>Lieu de travail:</strong> {formData.tuteur_lieu_travail}</p>
+                        )}
+                      </>
                     )}
-                    {formData.tuteur_lieu_travail && (
-                      <p><strong>Lieu de travail:</strong> {formData.tuteur_lieu_travail}</p>
-                    )}
+                    {photos.tuteur && <p><strong>Photo:</strong> ✅ {photos.tuteur.name}</p>}
                   </div>
                 </div>
 
@@ -1120,6 +1433,7 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
                         <div className="ml-4">
                           <p>{formData.pere_prenom} {formData.pere_nom}</p>
                           <p>📞 {formData.pere_telephone}</p>
+                          {photos.pere && <p>📷 Photo: ✅ {photos.pere.name}</p>}
                         </div>
                       )}
                     </div>
@@ -1135,6 +1449,7 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
                         <div className="ml-4">
                           <p>{formData.mere_prenom} {formData.mere_nom}</p>
                           <p>📞 {formData.mere_telephone}</p>
+                          {photos.mere && <p>📷 Photo: ✅ {photos.mere.name}</p>}
                         </div>
                       )}
                     </div>
