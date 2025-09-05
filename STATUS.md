@@ -1,5 +1,30 @@
 # État d'avancement - École Management Frontend
 
+## ✅ **Refactoring UX Photos Inscription - TERMINÉ**
+
+### **📋 Réorganisation interface réalisée :**
+- [x] Photos intégrées directement dans chaque formulaire
+- [x] Ordre logique des étapes : Élève → Parents → Tuteur → Confirmation
+- [x] Composant PhotoUpload réutilisable avec variants (circular, inline, default)
+- [x] Prévisualisation circulaire avec boutons d'action intuitifs
+- [x] Suppression de l'étape dédiée aux photos (plus ergonomique)
+
+### **🔧 Améliorations techniques :**
+- [x] Gestion correcte des URLs d'objets avec nettoyage automatique
+- [x] Fix prévisualisation (suppression overlay noir problématique)
+- [x] Logging intégré pour traçabilité complète des uploads
+- [x] Gestion mémoire optimisée (useEffect + revoke URLs)
+- [x] Support photos optionnelles avec feedback visuel
+
+### **🎯 Expérience utilisateur :**
+- [x] Photos affichées à côté des informations concernées
+- [x] Interface cohérente et intuitive
+- [x] Feedback immédiat lors des uploads
+- [x] Boutons d'action accessibles (modifier/supprimer)
+- [x] Design mobile-first préservé
+
+---
+
 ## ✅ **Feature Logging System - TERMINÉE**
 
 ### **📋 Système de logging implémenté :**
