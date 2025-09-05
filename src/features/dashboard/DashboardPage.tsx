@@ -2,10 +2,12 @@ import { useDashboardStats } from './api';
 import { StatsGrid } from './components/StatWidget';
 import { logger } from '../../shared/utils/logger';
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { TDashboardWidget } from './types';
 
 export function DashboardPage() {
   const { data: stats, isLoading, error } = useDashboardStats();
+  const navigate = useNavigate();
 
   useEffect(() => {
     logger.feature('dashboard', 'Page dashboard affichée');
@@ -106,7 +108,10 @@ export function DashboardPage() {
           Actions rapides
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow cursor-pointer">
+          <div 
+            onClick={() => navigate('/students?create=true')}
+            className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow cursor-pointer"
+          >
             <div className="flex items-center">
               <div className="p-3 bg-blue-100 rounded-lg">
                 <span className="text-2xl">➕</span>

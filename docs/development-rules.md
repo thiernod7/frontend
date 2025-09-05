@@ -234,7 +234,87 @@ Si tu te dis :
 - "Dans la plupart des cas..."   → 🚨 STOP, VERIFY!
 - "Je suppose que..."            → 🚨 STOP, VERIFY!
 
-### **💡 EXEMPLE CONCRET - LEÇON APPRISE**
+### **� EXEMPLES CONCRETS DE VIOLATIONS**
+
+#### **❌ Violation typique - Types supposés**
+```typescript
+// ❌ Supposer la structure sans vérifier le backend
+interface TAnneeScolaire { 
+  annee: string;  // WRONG! Backend utilise "nom"
+}
+
+// Résultat : currentYear.annee → undefined
+<p>Année: {currentYear.annee}</p> // Affiche juste "Année: "
+```
+
+#### **✅ Méthode correcte - Investigation d'abord**
+```bash
+# 1. OBLIGATOIRE : Vérifier le backend FIRST
+cat ../backend/app/domains/planification/schemas.py
+# → AnneeScolaireRead has "nom" field, not "annee"
+
+# 2. Tester l'endpoint réel
+curl -H "Authorization: Bearer TOKEN" http://localhost:8000/planification/annees-scolaires/actuelle
+# Response: {"nom": "2024-2025", "date_debut": "2024-10-01", ...}
+
+# 3. Créer le bon type basé sur la RÉALITÉ
+interface TAnneeScolaire {
+  nom: string;          // ✅ CORRECT - field exists in backend
+  date_debut: string;   // ✅ CORRECT - verified in response
+  date_fin: string;     // ✅ CORRECT - verified in response
+  is_current?: boolean; // ✅ CORRECT - optional field found
+}
+
+# 4. Utiliser correctement
+<p>Année: {currentYear.nom}</p> // ✅ Affiche "Année: 2024-2025"
+```
+
+#### **⚠️ Autres violations courantes**
+```typescript
+// ❌ Supposer les endpoints
+const API_URL = '/users';  // Mais backend a '/utilisateurs'
+
+// ❌ Supposer les champs requis  
+username: z.string().email()  // Mais backend accepte username générique
+
+// ❌ Supposer les codes d'erreur
+if (error.status === 400)  // Mais backend retourne 422 pour validation
+
+// ❌ Supposer les formats de date
+date: "2024-01-01"  // Mais backend attend "01/01/2024"
+```
+
+#### **✅ Processus de vérification**
+```bash
+# TOUJOURS faire ça AVANT de coder :
+
+# 1. Explorer la structure backend
+find ../backend/app/domains -name "schemas.py" -exec echo "=== {} ===" \; -exec cat {} \;
+
+# 2. Examiner les routers pour les endpoints exacts
+find ../backend/app/domains -name "router.py" -exec echo "=== {} ===" \; -exec cat {} \;
+
+# 3. Démarrer le backend et tester
+uvicorn app.main:app --reload
+curl -X GET "http://localhost:8000/docs"  # Swagger UI
+
+# 4. Tester chaque endpoint manuellement
+curl -H "Authorization: Bearer TOKEN" "http://localhost:8000/[endpoint]"
+
+# 5. Documenter les findings dans docs/backend-[feature]-analysis.md
+```
+
+### **🔥 RÈGLE ULTIME - "BACKEND FIRST"**
+```
+❌ Backend (supposé) → Frontend (code) → Backend (réalité) → Bug (frustration)
+
+✅ Backend (investigation) → Documentation → Frontend (code sûr) → Success
+```
+
+**Temps perdu à supposer : 2 heures de debug**  
+**Temps gagné à vérifier : 15 minutes d'investigation**
+
+### **�💡 EXEMPLE CONCRET - LEÇON APPRISE**
 
 **❌ Ce qu'on a fait (MAL)** :
 ```typescript
