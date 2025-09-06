@@ -62,12 +62,13 @@ export interface TInscription {
 }
 
 /**
- * Élève détaillé - EleveDetailRead
+ * Élève détaillé - EleveDetailRead (NOUVEAU FORMAT BACKEND)
  */
 export interface TStudentDetail extends TStudent {
   pere?: TParent;
   mere?: TParent;
-  tuteur: TParent;  // OBLIGATOIRE
+  tuteur_role?: 'pere' | 'mere' | 'autre';  // NOUVEAU : Type de tuteur
+  tuteur_details?: TParent;  // NOUVEAU : était "tuteur"
   inscriptions: TInscription[];
 }
 

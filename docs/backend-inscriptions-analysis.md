@@ -119,7 +119,7 @@
 }
 ```
 
-### **EleveDetailRead** (Détail)
+### **EleveDetailRead** (Détail) ⚠️ **FORMAT MODIFIÉ**
 ```json
 {
   // ... tous les champs de EleveRead +
@@ -133,7 +133,8 @@
     "profession": "string?",
     "lieu_travail": "string?"
   },
-  "tuteur": {
+  "tuteur_role": "pere" | "mere" | "autre",  // NOUVEAU !
+  "tuteur_details": {                        // NOUVEAU ! (était "tuteur")
     "personne": "PersonneRead",
     "profession": "string?", 
     "lieu_travail": "string?"
@@ -289,24 +290,43 @@ if (photoTuteur) formData.append('photo_tuteur', photoTuteur);
 - ✅ Interface `TInscriptionCreate` mise à jour avec les nouveaux champs
 - ✅ `tuteur_role` ajouté avec type union `'pere' | 'mere' | 'autre'`
 - ✅ `tuteur_data` ajouté avec structure conditionnelle
+- ✅ **Interface `TStudentDetail` adaptée** pour nouveaux champs détail élève
 
 ### 2. Logique de construction des données (StudentForm.tsx)
 - ✅ Construction adaptée pour utiliser `tuteur_role` au lieu de `tuteur`
 - ✅ Logique conditionnelle pour `tuteur_data` (seulement si `tuteur_role === 'autre'`)
 - ✅ Validation côté frontend des règles backend
 
-### 3. Validations ajoutées
+### 3. Composant détail élève (StudentDetail.tsx)
+- ✅ **Adaptation pour nouveaux champs** : `tuteur_details` et `tuteur_role`
+- ✅ **Affichage du type de tuteur** avec badge explicite
+- ✅ **Gestion de l'absence de tuteur** (champ optionnel)
+- ✅ Interface cohérente avec le nouveau format backend
+
+### 4. Validations ajoutées
 - ✅ Vérification que le parent désigné comme tuteur existe
 - ✅ Validation des données tuteur complètes si `tuteur_role === 'autre'`
 - ✅ Contrôle qu'au moins un parent est renseigné
 - ✅ Messages d'erreur explicites avec logging
 
-### 4. Logging intégré
+### 5. Logging intégré
 - ✅ Suivi des étapes de construction des données
 - ✅ Logging des validations et erreurs
 - ✅ Traçabilité complète du processus d'inscription
 
-### 5. Compilation vérifiée
+### 6. Compilation vérifiée
 - ✅ Code compile sans erreurs TypeScript
 - ✅ Build production réussie
 - ✅ Prêt pour tests d'intégration
+
+## ⚠️ **CHANGELOG Backend Détecté - 6 septembre 2025**
+
+### **Modifications EleveDetailRead :**
+- 🔄 **`tuteur` → `tuteur_details`** : Champ tuteur renommé
+- ➕ **`tuteur_role` ajouté** : Indique le type de tuteur ('pere', 'mere', 'autre')
+- 📱 **Frontend adapté** : Types et composants mis à jour automatiquement
+
+### **Impact :**
+- ✅ **Pas de breaking change** : Adaptation transparente
+- ✅ **Interface utilisateur améliorée** : Affichage du type de tuteur
+- ✅ **Cohérence API** : Format uniforme entre création et lecture

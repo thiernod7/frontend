@@ -165,33 +165,41 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
           )}
 
           {/* Tuteur (obligatoire) */}
-          <div className="bg-green-50 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                {student.tuteur.personne.photo ? (
-                  <img 
-                    src={getPhotoUrl(student.tuteur.personne.photo) || ''} 
-                    alt={`${student.tuteur.personne.prenom} ${student.tuteur.personne.nom}`}
-                    className="h-full w-full object-cover rounded-full"
-                  />
-                ) : (
-                  <span className="text-green-600 font-semibold">👤</span>
-                )}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">
-                  👤 Tuteur: {student.tuteur.personne.prenom} {student.tuteur.personne.nom}
-                </p>
-                <p className="text-sm text-gray-600">📞 {student.tuteur.personne.telephone}</p>
-                {student.tuteur.profession && (
-                  <p className="text-sm text-gray-600">💼 {student.tuteur.profession}</p>
-                )}
-                {student.tuteur.lieu_travail && (
-                  <p className="text-sm text-gray-600">🏢 {student.tuteur.lieu_travail}</p>
-                )}
+          {student.tuteur_details && (
+            <div className="bg-green-50 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+                  {student.tuteur_details.personne.photo ? (
+                    <img 
+                      src={getPhotoUrl(student.tuteur_details.personne.photo) || ''} 
+                      alt={`${student.tuteur_details.personne.prenom} ${student.tuteur_details.personne.nom}`}
+                      className="h-full w-full object-cover rounded-full"
+                    />
+                  ) : (
+                    <span className="text-green-600 font-semibold">👤</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-900">
+                    👤 Tuteur: {student.tuteur_details.personne.prenom} {student.tuteur_details.personne.nom}
+                    {student.tuteur_role && (
+                      <span className="ml-2 px-2 py-1 bg-green-200 text-green-800 text-xs rounded-full">
+                        {student.tuteur_role === 'pere' ? 'Le père' : 
+                         student.tuteur_role === 'mere' ? 'La mère' : 'Autre personne'}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-gray-600">📞 {student.tuteur_details.personne.telephone}</p>
+                  {student.tuteur_details.profession && (
+                    <p className="text-sm text-gray-600">💼 {student.tuteur_details.profession}</p>
+                  )}
+                  {student.tuteur_details.lieu_travail && (
+                    <p className="text-sm text-gray-600">🏢 {student.tuteur_details.lieu_travail}</p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
