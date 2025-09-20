@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import { useStudents } from '../api';
 import { getPhotoUrl } from '../../../shared/utils/photos';
+import FilterPanel from './FilterPanel';
 import type { TStudent, TStudentSearchParams } from '../types';
 
 interface StudentsListProps {
@@ -16,18 +16,10 @@ export function StudentsList({
   selectedStudent,
   onStudentSelect,
 }: StudentsListProps) {
-  const [localSearch, setLocalSearch] = useState(searchParams.search || '');
-  
   const { data: students, isLoading, isError } = useStudents(searchParams);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSearchChange({ ...searchParams, search: localSearch });
-  };
-
-  const handleSearchClear = () => {
-    setLocalSearch('');
-    onSearchChange({ ...searchParams, search: undefined });
+  const handleResetFilters = () => {
+    onSearchChange({});
   };
 
   if (isError) {
@@ -46,33 +38,13 @@ export function StudentsList({
 
   return (
     <div className="space-y-4">
-      {/* Barre de recherche */}
-      <form onSubmit={handleSearchSubmit} className="flex gap-2">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Rechercher par nom, prénom ou matricule..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          />
-        </div>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        >
-          🔍
-        </button>
-        {searchParams.search && (
-          <button
-            type="button"
-            onClick={handleSearchClear}
-            className="px-3 py-2 text-gray-500 hover:text-gray-700"
-          >
-            ✕
-          </button>
-        )}
-      </form>
+      {/* Panel de filtres simplifiés */}
+      <FilterPanel
+        filters={searchParams}
+        onFiltersChange={onSearchChange}
+        onReset={handleResetFilters}
+        isLoading={isLoading}
+      />
 
       {/* Loading */}
       {isLoading && (
@@ -90,10 +62,20 @@ export function StudentsList({
         <div className="space-y-2">
           {students.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {searchParams.search ? 
-                `Aucun élève trouvé pour "${searchParams.search}"` : 
+              {Object.keys(searchParams).length > 0 ? (
+                <div>
+                  <p>Aucun élève trouvé</p>
+                  <p className="text-sm mt-1">avec les filtres appliqués</p>
+                  <button
+                    onClick={handleResetFilters}
+                    className="mt-2 text-indigo-600 hover:text-indigo-800 text-sm"
+                  >
+                    Effacer les filtres
+                  </button>
+                </div>
+              ) : (
                 'Aucun élève enregistré'
-              }
+              )}
             </div>
           ) : (
             students.map((student) => (
@@ -174,7 +156,9 @@ export function StudentsList({
       {students && students.length > 0 && (
         <div className="text-sm text-gray-500 text-center pt-2 border-t">
           {students.length} élève{students.length > 1 ? 's' : ''}
-          {searchParams.search && ` trouvé${students.length > 1 ? 's' : ''}`}
+          {Object.keys(searchParams).length > 0 && (
+            <span> avec les filtres appliqués</span>
+          )}
         </div>
       )}
     </div>

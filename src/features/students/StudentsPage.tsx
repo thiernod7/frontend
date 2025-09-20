@@ -24,6 +24,18 @@ export function StudentsPage() {
       setUrlSearchParams(urlSearchParams);
     }
   }, [urlSearchParams, setUrlSearchParams]);
+
+  // Gérer le paramètre classe_id depuis l'URL pour filtrer par classe
+  useEffect(() => {
+    const classeId = urlSearchParams.get('classe_id');
+    if (classeId) {
+      logger.feature('StudentsPage', 'Filtrage par classe depuis URL', { classeId });
+      setSearchParams(prevParams => ({
+        ...prevParams,
+        classe_id: classeId
+      }));
+    }
+  }, [urlSearchParams]);
   
   return (
     <div className="space-y-6">
@@ -33,6 +45,11 @@ export function StudentsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Élèves</h1>
           <p className="mt-2 text-sm text-gray-700">
             Gestion des élèves et des inscriptions de votre établissement
+            {searchParams.classe_id && (
+              <span className="ml-2 text-indigo-600 font-medium">
+                • Filtrés par classe
+              </span>
+            )}
           </p>
         </div>
         <div className="mt-4 sm:mt-0">

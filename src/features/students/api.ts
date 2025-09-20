@@ -71,6 +71,16 @@ export const studentsService = {
     if (params.classe_id) {
       searchParams.append('classe_id', params.classe_id);
     }
+    // Note: sexe n'est pas encore supporté par le backend
+    // if (params.sexe) {
+    //   searchParams.append('sexe', params.sexe);
+    // }
+    if (params.page) {
+      searchParams.append('page', params.page.toString());
+    }
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
     
     const url = `/inscriptions/eleves${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     const { data } = await api.get<TStudent[]>(url);
@@ -152,6 +162,23 @@ export function useStudents(params: TStudentSearchParams = {}) {
       logger.feature('StudentsAPI', 'Récupération liste élèves', params);
       return studentsService.getStudents(params);
     },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
+ * Hook pour récupérer les élèves d'une classe spécifique
+ */
+export function useStudentsByClasse(classeId: string) {
+  logger.feature('StudentsAPI', 'useStudentsByClasse hook appelé', { classeId });
+  
+  return useQuery({
+    queryKey: ['students', 'classe', classeId],
+    queryFn: () => {
+      logger.feature('StudentsAPI', 'Récupération élèves de la classe', { classeId });
+      return studentsService.getStudents({ classe_id: classeId });
+    },
+    enabled: !!classeId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

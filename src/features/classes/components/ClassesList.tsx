@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Edit, Users, CheckCircle, XCircle } from 'lucide-react';
 import type { TClasse } from '../types';
 
@@ -101,13 +102,22 @@ const ClassesList: React.FC<ClassesListProps> = ({ classes, isLoading, onEdit })
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <button
-                  onClick={() => onEdit(classe.id)}
-                  className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
-                >
-                  <Edit className="w-4 h-4" />
-                  Modifier
-                </button>
+                <div className="flex items-center justify-end gap-2">
+                  <Link
+                    to={`/students?classe_id=${classe.id}`}
+                    className="text-green-600 hover:text-green-900 inline-flex items-center gap-1"
+                  >
+                    <Users className="w-4 h-4" />
+                    Élèves
+                  </Link>
+                  <button
+                    onClick={() => onEdit(classe.id)}
+                    className="text-blue-600 hover:text-blue-900 inline-flex items-center gap-1"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Modifier
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

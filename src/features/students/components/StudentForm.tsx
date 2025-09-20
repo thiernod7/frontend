@@ -502,10 +502,10 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
   };
 
   const stepTitles = [
-    '👤 Informations élève',
-    '‍👩‍👧‍👦 Parents (optionnel)',
+    '👤 Informations de l\'élève',
+    '👨‍👩‍👧‍👦 Parents (optionnels)',
     '👥 Tuteur (obligatoire)',
-    '📸 Photos & Finalisation'
+    '📸 Finalisation'
   ];
 
   return (
@@ -725,13 +725,28 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
 
         {/* Étape 3: Tuteur */}
         {currentStep === 3 && (
-          <div className="space-y-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-              <h4 className="text-yellow-800 font-medium">👥 Désignation du Tuteur</h4>
-              <p className="text-yellow-700 text-sm mt-1">
-                Le tuteur est <strong>obligatoire</strong> et sera la personne de contact principale.
-                Choisissez parmi les parents renseignés ou désignez une autre personne.
+          <div className="space-y-6">
+            <div className="text-center mb-6">
+              <span className="text-6xl">👥</span>
+              <h3 className="text-lg font-semibold text-gray-900 mt-4">
+                Tuteur (obligatoire)
+              </h3>
+              <p className="text-gray-600 mt-2">
+                Désignez la personne de contact principale pour l'élève.
               </p>
+            </div>
+
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <span className="text-yellow-600 text-lg mr-2">⚠️</span>
+                <div>
+                  <h4 className="text-yellow-800 font-medium">Information importante</h4>
+                  <p className="text-yellow-700 text-sm mt-1">
+                    Le tuteur est <strong>obligatoire</strong> et sera la personne de contact principale.
+                    Choisissez parmi les parents renseignés ou désignez une autre personne.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* Sélection du tuteur */}
@@ -989,10 +1004,10 @@ export function StudentForm({ onSuccess, onCancel }: StudentFormProps) {
             <div className="text-center mb-6">
               <span className="text-6xl">👨‍👩‍👧‍👦</span>
               <h3 className="text-lg font-semibold text-gray-900 mt-4">
-                Parents (optionnel)
+                Parents (optionnels)
               </h3>
               <p className="text-gray-600 mt-2">
-                Ajoutez les informations du père et de la mère si souhaité.
+                Renseignez les informations du père et/ou de la mère.
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 Vous pouvez rechercher des parents existants ou en créer de nouveaux.

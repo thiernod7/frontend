@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2 } from 'lucide-react';
-import { useClasse, useCreateClasse, useUpdateClasse, useNiveaux } from '../api';
+import { useClasse, useCreateClasse, useUpdateClasse, useNiveaux, useCurrentYear, useAllYears } from '../api';
 import type { TCreateClasse, TUpdateClasse } from '../types';
+import { logger } from '../../../shared/utils/logger';
 
 interface ClasseFormProps {
   classeId?: string | null;
@@ -12,12 +13,19 @@ const ClasseForm: React.FC<ClasseFormProps> = ({ classeId, onClose }) => {
   const [formData, setFormData] = useState({
     nom: '',
     niveau_id: '',
-    is_active: true,
+    annee_scolaire_id: '',
+    option_id: '',
+    site_id: '',
+    salle_id: '',
+    professeur_principal_id: '',
+    effectif_max: '',
   });
 
   const isEditing = Boolean(classeId);
   const { data: classe, isLoading: classeLoading } = useClasse(classeId || '');
   const { data: niveaux } = useNiveaux({ active_only: true });
+  const { data: currentYear } = useCurrentYear();
+  const { data: allYears } = useAllYears();
   const createMutation = useCreateClasse();
   const updateMutation = useUpdateClasse();
 
@@ -29,32 +37,53 @@ const ClasseForm: React.FC<ClasseFormProps> = ({ classeId, onClose }) => {
       setFormData({
         nom: classe.nom,
         niveau_id: classe.niveau?.id || '',
-        is_active: classe.is_active,
+        annee_scolaire_id: classe.annee_scolaire_id || '',
+        option_id: classe.option_id || '',
+        site_id: classe.site_id || '',
+        salle_id: classe.salle_id || '',
+        professeur_principal_id: classe.professeur_principal_id || '',
+        effectif_max: classe.effectif_max?.toString() || '',
       });
+    } else if (!isEditing && currentYear) {
+      // Auto-sélectionner l'année courante pour nouveau
+      setFormData(prev => ({
+        ...prev,
+        annee_scolaire_id: currentYear.id,
+      }));
     }
-  }, [classe, isEditing]);
+  }, [classe, isEditing, currentYear]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    logger.info('ClasseForm: Début soumission formulaire', { isEditing, classeId, formData });
 
     try {
       if (isEditing && classeId) {
         const updateData: TUpdateClasse = {
           nom: formData.nom,
           niveau_id: formData.niveau_id || undefined,
-          is_active: formData.is_active,
         };
+        logger.info('ClasseForm: Données pour mise à jour', updateData);
         await updateMutation.mutateAsync({ id: classeId, data: updateData });
+        logger.info('ClasseForm: Classe mise à jour avec succès');
       } else {
         const createData: TCreateClasse = {
           nom: formData.nom,
           niveau_id: formData.niveau_id,
-          is_active: formData.is_active,
+          annee_scolaire_id: formData.annee_scolaire_id,
+          ...(formData.option_id && { option_id: formData.option_id }),
+          ...(formData.site_id && { site_id: formData.site_id }),
+          ...(formData.salle_id && { salle_id: formData.salle_id }),
+          ...(formData.professeur_principal_id && { professeur_principal_id: formData.professeur_principal_id }),
+          ...(formData.effectif_max && { effectif_max: parseInt(formData.effectif_max) }),
         };
+        logger.info('ClasseForm: Données pour création', createData);
         await createMutation.mutateAsync(createData);
+        logger.info('ClasseForm: Classe créée avec succès');
       }
       onClose();
     } catch (error) {
+      logger.error('ClasseForm: Erreur lors de la sauvegarde', error);
       console.error('Erreur lors de la sauvegarde:', error);
     }
   };
@@ -115,11 +144,12 @@ const ClasseForm: React.FC<ClasseFormProps> = ({ classeId, onClose }) => {
           {/* Niveau */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Niveau
+              Niveau *
             </label>
             <select
               value={formData.niveau_id}
               onChange={(e) => handleInputChange('niveau_id', e.target.value)}
+              required
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSubmitting}
             >
@@ -133,19 +163,42 @@ const ClasseForm: React.FC<ClasseFormProps> = ({ classeId, onClose }) => {
             </select>
           </div>
 
-          {/* Statut actif */}
-          <div className="flex items-center">
+          {/* Année scolaire */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Année scolaire *
+            </label>
+            <select
+              value={formData.annee_scolaire_id}
+              onChange={(e) => handleInputChange('annee_scolaire_id', e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isSubmitting}
+            >
+              <option value="">Sélectionner une année scolaire</option>
+              {allYears?.map((year) => (
+                <option key={year.id} value={year.id}>
+                  {year.nom}
+                  {year.is_current && ' (Actuelle)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Effectif maximum */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Effectif maximum
+            </label>
             <input
-              type="checkbox"
-              id="is_active"
-              checked={formData.is_active}
-              onChange={(e) => handleInputChange('is_active', e.target.checked)}
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              type="number"
+              value={formData.effectif_max}
+              onChange={(e) => handleInputChange('effectif_max', e.target.value)}
+              placeholder="Ex: 30"
+              min="1"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSubmitting}
             />
-            <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
-              Classe active
-            </label>
           </div>
 
           {/* Error display */}
@@ -168,7 +221,7 @@ const ClasseForm: React.FC<ClasseFormProps> = ({ classeId, onClose }) => {
             <button
               type="submit"
               className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center gap-2"
-              disabled={isSubmitting || !formData.nom.trim()}
+              disabled={isSubmitting || !formData.nom.trim() || !formData.niveau_id.trim() || !formData.annee_scolaire_id.trim()}
             >
               {isSubmitting ? (
                 <>

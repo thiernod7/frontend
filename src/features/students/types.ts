@@ -73,11 +73,14 @@ export interface TStudentDetail extends TStudent {
 }
 
 /**
- * Paramètres de recherche élèves
+ * Paramètres de recherche et filtrage des étudiants (version simplifiée)
  */
 export interface TStudentSearchParams {
-  search?: string;      // Recherche nom/prénom/matricule
-  classe_id?: string;   // UUID classe
+  search?: string;
+  classe_id?: string;
+  sexe?: 'M' | 'F';
+  page?: number;
+  limit?: number;
 }
 
 /**
@@ -124,7 +127,14 @@ export interface TInscriptionCreate {
   annee_scolaire_id: string;      // UUID
   frais_inscription?: number;
   frais_scolarite?: number;
-  documents_fournis?: unknown[];  // TODO: définir DocumentFourniCreate
+  documents_fournis?: TDocumentFourni[];  // ⭐ NOUVEAU : Documents fournis à l'inscription
+}
+
+/**
+ * Document fourni à l'inscription
+ */
+export interface TDocumentFourni {
+  type_document_id: string;  // UUID du type de document
 }
 
 /**

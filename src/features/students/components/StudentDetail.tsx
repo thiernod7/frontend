@@ -1,5 +1,6 @@
 import { useStudentDetail } from '../api';
 import { getPhotoUrl } from '../../../shared/utils/photos';
+import { DocumentsStatus } from '../../documents/components/DocumentsStatus';
 
 interface StudentDetailProps {
   studentId: string;
@@ -236,6 +237,15 @@ export function StudentDetail({ studentId }: StudentDetailProps) {
           </div>
         </div>
       )}
+
+      {/* Documents de l'élève */}
+      <div>
+        <DocumentsStatus 
+          eleveId={student.id}
+          inscriptionId={student.inscriptions[0]?.id} // Utilise la première inscription (actuelle)
+          readonly={false}
+        />
+      </div>
     </div>
   );
 }
